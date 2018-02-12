@@ -8,6 +8,7 @@
 #include <math.h>
 #include <helper_3dmath.h>
 #include <MPU6050_6Axis_MotionApps20.h>
+#include "TiltController.h"
 
 // Arduino Wire library is required if I2Cdev I2CDEV_ARDUINO_WIRE implementation
 // is used in I2Cdev.h
@@ -35,17 +36,20 @@ VectorFloat gravity; // [x, y, z]            gravity vector
 #endif
 
 
-Servo servo1;
-Servo servo2;
-Servo servo3;
-Servo servo4;
+Servo engineServo;
 
-//float yawInitial;
+Servo rollServo;
+const int rollSign = -1;
 
-#define SERVO_1_PIN 10
-#define SERVO_2_PIN 9
-#define SERVO_3_PIN 11
-#define SERVO_4_PIN 6
+Servo pitchServos[2];
+const int pitchSigns[] = {1, -1};
+
+
+
+#define SERVO_PIN_PITCH_1 10
+#define SERVO_PIN_PITCH_2 9
+#define SERVO_PIN_ROLL 11
+#define SERVO_PIN_ENGINE 6
 
 #define ROLL_DEGREE_0 81
 #define ROLL_DEGREE_RANGE 40
@@ -56,21 +60,7 @@ Servo servo4;
 #define MAX_PITCH_ADJUST 15
 
 float mpuData[3];
-
-int adjustPitch;
-int adjustRoll;
-
-float rawAdjustPitch;
-float rawAdjustRoll;
-
-float servoValue[3];
-
 void getMpuValues(float *data);
-void getTargetOrientation(float targetOrientation[]);
-float f(float x);
-void limitServoValues(float servoValue[]);
-float getAmplitudePercentage(float degreeDifference);
-int sgn(float val);
 
 volatile bool mpuInterrupt = false; // indicates whether MPU interrupt pin has gone high
 void dmpDataReady()
@@ -78,15 +68,22 @@ void dmpDataReady()
 	mpuInterrupt = true;
 }
 
+TiltController *pitchController;
+TiltController *rollController;
+
 void setup()
 {
 	Serial.begin(115200);
 	while (!Serial); // wait for Leonardo enumeration, otherwise continue immediately
 
-	servo1.attach(SERVO_1_PIN);
-	servo2.attach(SERVO_2_PIN);
-	servo3.attach(SERVO_3_PIN);
-	servo4.attach(SERVO_4_PIN);
+	pitchServos[0].attach(SERVO_PIN_PITCH_1);
+	pitchServos[1].attach(SERVO_PIN_PITCH_2);
+	rollServo.attach(SERVO_PIN_ROLL);
+	engineServo.attach(SERVO_PIN_ENGINE);
+    pitchController = new TiltController(2, pitchServos, pitchSigns, PITCH_DEGREE_0, PITCH_DEGREE_RANGE, MAX_PITCH_ADJUST);
+	rollController = new TiltController(1, &rollServo, &rollSign, ROLL_DEGREE_0, ROLL_DEGREE_RANGE, MAX_ROLL_ADJUST);
+    pitchController->targetDegree(2);
+    rollController->targetDegree(-0.4);
 
 	// join I2C bus (I2Cdev library doesn't do this automatically)
 #if I2CDEV_IMPLEMENTATION == I2CDEV_ARDUINO_WIRE
@@ -153,83 +150,13 @@ void setup()
 
 void loop()
 {
-	servo4.write(30); //30 für Motor = aus
+	engineServo.write(30); //30 für Motor = aus
 
 	getMpuValues(mpuData);
-	float targetOrientation[3];
-	getTargetOrientation(targetOrientation);
-
-	float pitchDelta = targetOrientation[1] - mpuData[1] * 180 / M_PI;
-	float rollDelta = targetOrientation[2] - mpuData[2] * 180 / M_PI;
-	servoValue[0] = (PITCH_DEGREE_0 + getAmplitudePercentage(pitchDelta) / 100 * PITCH_DEGREE_RANGE + adjustPitch + 20);
-	servoValue[1] = (PITCH_DEGREE_0 - getAmplitudePercentage(pitchDelta) / 100 * PITCH_DEGREE_RANGE - adjustPitch + 20);
-	servoValue[2] = (ROLL_DEGREE_0 - getAmplitudePercentage(rollDelta) / 100 * ROLL_DEGREE_RANGE - adjustRoll);
-
-	limitServoValues(servoValue);
-
-	servo1.write(servoValue[0]);
-	servo2.write(servoValue[1]);
-	servo3.write(servoValue[2]);
-
-
-	if (fabs(pitchDelta) > 0.1) // Wenn der Sollwinkel noch nicht erreicht ist, wird der Betrag vom Korrekturwert erhöht.
-	{
-		rawAdjustPitch += f(pitchDelta) * sgn(pitchDelta);
-		if (rawAdjustPitch > MAX_PITCH_ADJUST)
-			rawAdjustPitch = MAX_PITCH_ADJUST;
-
-		if (rawAdjustPitch <  -MAX_PITCH_ADJUST)
-			rawAdjustPitch =  -MAX_PITCH_ADJUST;
-		adjustPitch = floor(rawAdjustPitch);
-	}
-
-	if (fabs(rollDelta) > 0.1)
-	{
-		rawAdjustRoll += f(rollDelta) * sgn(rollDelta);
-		if (rawAdjustRoll > MAX_ROLL_ADJUST)
-			rawAdjustRoll = MAX_ROLL_ADJUST;
-
-		if (rawAdjustRoll < -MAX_ROLL_ADJUST)
-			rawAdjustRoll = -MAX_ROLL_ADJUST;
-		adjustRoll = floor(rawAdjustRoll);
-	}
+    pitchController->supply(mpuData[1]);
+    rollController->supply(mpuData[2]);
 }
 
-float getAmplitudePercentage(float degreeDifference)
-{
-	return (1 / (1 + exp(-5 * degreeDifference / 100)) - 0.5) * 200;
-}
-
-void limitServoValues(float servoValue[])
-{
-	for (int i = 0; i < 2; i++)
-	{
-		if (servoValue[i] > PITCH_DEGREE_0 + PITCH_DEGREE_RANGE)
-			servoValue[i] = PITCH_DEGREE_0 + PITCH_DEGREE_RANGE;
-
-		if (servoValue[i] < PITCH_DEGREE_0 - PITCH_DEGREE_RANGE)
-			servoValue[i] = PITCH_DEGREE_0 - PITCH_DEGREE_RANGE;
-	}
-
-	if (servoValue[2] > ROLL_DEGREE_0 + ROLL_DEGREE_RANGE)
-		servoValue[2] = ROLL_DEGREE_0 + ROLL_DEGREE_RANGE;
-	
-	if (servoValue[2] < ROLL_DEGREE_0 - ROLL_DEGREE_RANGE)
-		servoValue[2] = ROLL_DEGREE_0 - ROLL_DEGREE_RANGE;
-}
-
-float f(float x)
-{
-  return (2.8 / (1 + exp(-0.5*(abs(x)))) - 1.3);
-	//return (abs(x) < 50) ? (0.1 * abs(x) + 0.2) : 1;
-}
-
-void getTargetOrientation(float targetOrientation[])
-{
-	targetOrientation[0] = 0;	//y
-	targetOrientation[1] = 2;  //p = 0.0
-	targetOrientation[2] = -0.4; //r = 0.0
-}
 
 void getMpuValues(float *data)
 {
@@ -292,7 +219,3 @@ void getMpuValues(float *data)
 	}
 }
 
-int sgn(float val)
-{
-	return (val > 0) - (val < 0);
-}
