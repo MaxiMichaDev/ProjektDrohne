@@ -3,10 +3,8 @@
  Created:	10.01.2018 16:22:22
  Author:	Micha    ...und Maxi!, halloooo?! :D
 */
+#include "Drohne.h"
 #include <Servo.h>
-
-#include <math.h>
-#include <helper_3dmath.h>
 #include <MPU6050_6Axis_MotionApps20.h>
 #include "TiltController.h"
 
@@ -31,21 +29,19 @@ uint8_t fifoBuffer[64]; // FIFO storage buffer
 Quaternion q;		 // [w, x, y, z]         quaternion container
 VectorFloat gravity; // [x, y, z]            gravity vector
 
-#ifdef OUTPUT_READABLE_YAWPITCHROLL 
-	float ypr[3];		 // [yaw, pitch, roll]   yaw/pitch/roll container and gravity vector
-#endif
-
-
 Servo engineServo;
 
 Servo rollServo;
 const int rollSign = -1;
 
 Servo pitchServos[2];
-const int pitchSigns[] = {1, -1};
+const int pitchSigns[2] = {1, -1};
 
+#define YAW 0
+#define PITCH 1
+#define ROLL 2
 
-
+#define CONTROL_PIN 8
 #define SERVO_PIN_PITCH_1 10
 #define SERVO_PIN_PITCH_2 9
 #define SERVO_PIN_ROLL 11
@@ -59,19 +55,16 @@ const int pitchSigns[] = {1, -1};
 #define PITCH_DEGREE_RANGE 30
 #define MAX_PITCH_ADJUST 15
 
-float mpuData[3];
-void getMpuValues(float *data);
-
 volatile bool mpuInterrupt = false; // indicates whether MPU interrupt pin has gone high
-void dmpDataReady()
-{
-	mpuInterrupt = true;
-}
 
 TiltController *pitchController;
 TiltController *rollController;
 
-void setup()
+void dmpDataReady() {
+	mpuInterrupt = true;
+}
+
+void setupDrone()
 {
 	Serial.begin(115200);
 	while (!Serial); // wait for Leonardo enumeration, otherwise continue immediately
@@ -94,21 +87,21 @@ void setup()
 #endif
 
 	// initialize device
-	Serial.println(F("Initializing I2C devices..."));
+	//Serial.println(F("Initializing I2C devices..."));
 	mpu.initialize();
 
 	// verify connection
-	Serial.println(F("Testing device connections..."));
-	Serial.println(mpu.testConnection() ? F("MPU6050 connection successful") : F("MPU6050 connection failed"));
+	//Serial.println(F("Testing device connections..."));
+	//Serial.println(mpu.testConnection() ? F("MPU6050 connection successful") : F("MPU6050 connection failed"));
 
 	// wait for ready
-	//Serial.println(F("\nSend any character to begin DMP programming and demo: "));
+	////Serial.println(F("\nSend any character to begin DMP programming and demo: "));
 	//while (Serial.available() && Serial.read()); // empty buffer
 	//while (!Serial.available());                 // wait for data
 	//while (Serial.available() && Serial.read()); // empty buffer again
 
 	// load and configure the DMP
-	Serial.println(F("Initializing DMP..."));
+	//Serial.println(F("Initializing DMP..."));
 	devStatus = mpu.dmpInitialize();
 
 	// supply your own gyro offsets here, scaled for min sensitivity
@@ -121,16 +114,16 @@ void setup()
 	if (devStatus == 0)
 	{
 		// turn on the DMP, now that it's ready
-		Serial.println(F("Enabling DMP..."));
+		//Serial.println(F("Enabling DMP..."));
 		mpu.setDMPEnabled(true);
 
 		// enable Arduino interrupt detection
-		Serial.println(F("Enabling interrupt detection (Arduino external interrupt 0)..."));
+		//Serial.println(F("Enabling interrupt detection (Arduino external interrupt 0)..."));
 		attachInterrupt(0, dmpDataReady, RISING);
 		mpuIntStatus = mpu.getIntStatus();
 
 		// set our DMP Ready flag so the main loop() function knows it's okay to use it
-		Serial.println(F("DMP ready! Waiting for first interrupt..."));
+		//Serial.println(F("DMP ready! Waiting for first interrupt..."));
 		dmpReady = true;
 
 		// get expected DMP packet size for later comparison
@@ -142,20 +135,27 @@ void setup()
 		// 1 = initial memory load failed
 		// 2 = DMP configuration updates failed
 		// (if it's going to break, usually the code will be 1)
-		Serial.print(F("DMP Initialization failed (code "));
-		Serial.print(devStatus);
-		Serial.println(F(")"));
+		//Serial.print(F("DMP Initialization failed (code "));
+		//Serial.print(devStatus);
+		//Serial.println(F(")"));
 	}
 }
 
-void loop()
+void getMpuValues(float *data);
+
+void mainLoop(data_t *data)
 {
 	engineServo.write(30); //30 für Motor = aus
 
-	getMpuValues(mpuData);
-    pitchController->supply(mpuData[1]);
-    rollController->supply(mpuData[2]);
+	data->time = micros();
+	getMpuValues(data->gyro);
+    pitchController->supply(data->gyro[PITCH]);
+	rollController->supply(data->gyro[ROLL]);
+	data->servoPercentage[0] = (pitchController->getServoValue() - PITCH_DEGREE_0) / PITCH_DEGREE_RANGE;
+	data->servoPercentage[1] = (rollController->getServoValue() - ROLL_DEGREE_0) / ROLL_DEGREE_RANGE;
 }
+
+bool isRemoteControlled() { return digitalRead(CONTROL_PIN) == HIGH; }
 
 
 void getMpuValues(float *data)
@@ -183,7 +183,7 @@ void getMpuValues(float *data)
 	{
 		// reset so we can continue cleanly
 		mpu.resetFIFO();
-		Serial.println(F("FIFO overflow!"));
+		//Serial.println(F("FIFO overflow!"));
 
 		// otherwise, check for DMP data ready interrupt (this should happen frequently)
 	}
@@ -204,18 +204,50 @@ void getMpuValues(float *data)
 		mpu.dmpGetQuaternion(&q, fifoBuffer);
 		mpu.dmpGetGravity(&gravity, &q);
 		mpu.dmpGetYawPitchRoll(data, &q, &gravity);
-	
+
 		#ifdef OUTPUT_READABLE_YAWPITCHROLL
 			// display Euler angles in degrees
 
-			Serial.print("ypr\t");
-			Serial.print(data[0] * 180 / M_PI);
-			Serial.print("\t");
-			Serial.print(data[1] * 180 / M_PI);
-			Serial.print("\t");
-			Serial.println(data[2] * 180 / M_PI);
+			//Serial.print("ypr\t");
+			//Serial.print(data[0] * 180 / M_PI);
+			//Serial.print("\t");
+			//Serial.print(data[1] * 180 / M_PI);
+			//Serial.print("\t");
+			//Serial.println(data[2] * 180 / M_PI);
 
 		#endif
 	}
+}
+
+// Start time for data
+static uint32_t startMicros;
+
+
+// Print a data record.
+void printData(Print* pr, data_t* data) {
+	if (startMicros == 0) {
+		startMicros = data->time;
+	}
+	pr->print(data->time - startMicros);
+	for (float value : data->gyro) {
+		pr->write(',');
+		pr->print(value);
+	}
+	for (float percent : data->servoPercentage) {
+		pr->write(',');
+		pr->print(percent);
+	}
+	pr->println();
+}
+
+// Print data header.
+void printHeader(Print* pr) {
+	startMicros = 0;
+	pr->println(F("time (ms), yaw, pitch, roll, pitchPercent, rollPercent"));
+}
+
+void switchedToRemoteControl() {
+	pitchController->reset();
+	rollController->reset();
 }
 
