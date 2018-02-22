@@ -54,7 +54,7 @@ float TiltController::getAmplitudePercentage(float degreeDifference) {
 }
 
 float TiltController::f(float x) {
-    return (2.8 / (1 + exp(-0.5*(fabs(x)))) - 1.3);
+    return 0.25;//(2.8 / (1 + exp(-0.5*(fabs(x)))) - 1.3);
     //return (abs(x) < 50) ? (0.1 * abs(x) + 0.2) : 1;
 }
 

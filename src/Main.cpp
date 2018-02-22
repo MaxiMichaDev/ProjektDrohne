@@ -519,6 +519,8 @@ void renameBinFile() {
 //  }
 //}
 //------------------------------------------------------------------------------
+
+File file;
 void setup(void) {
   Serial.begin(9600);
 
@@ -545,6 +547,8 @@ void setup(void) {
   if (!sd.begin(SD_CS_PIN, SD_SCK_MHZ(50))) {
     sd.initErrorPrint(&Serial);
   }
+    file = sd.open("/log.csv");
+    printHeader(&file);
   // recover existing tmp file.
 //  if (sd.exists(TMP_FILE_NAME)) {
 //    //Serial.println(F("\nType 'Y' to recover existing tmp file " TMP_FILE_NAME));
@@ -559,20 +563,26 @@ void setup(void) {
 //  }
 }
 //------------------------------------------------------------------------------
+data_t *data = new data_t;
+
 void loop(void) {
 
 //    dumpData();
     while (isRemoteControlled()) {
         delay(20);
     }
-    createBinFile();
-    recordBinFile();
-    renameBinFile();
+    mainLoop(data);
+    printData(&file, data);
 
-    if (isRemoteControlled()) {
-        switchedToRemoteControl();
-        binaryToCsv();
-    }
+
+//    createBinFile();
+//    recordBinFile();
+//    renameBinFile();
+
+//    if (isRemoteControlled()) {
+//        switchedToRemoteControl();
+////        binaryToCsv();
+//    }
 //    checkOverrun();
 //    sd.ls(&Serial, LS_SIZE);
 //    testSensor();
