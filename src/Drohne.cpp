@@ -46,10 +46,10 @@ const int pitchSigns[] = {1, -1};
 
 
 
-#define SERVO_PIN_PITCH_1 10
+#define SERVO_PIN_PITCH_1 6
 #define SERVO_PIN_PITCH_2 9
-#define SERVO_PIN_ROLL 11
-#define SERVO_PIN_ENGINE 6
+#define SERVO_PIN_ROLL 5
+#define SERVO_PIN_ENGINE 3
 
 #define ROLL_DEGREE_0 81
 #define ROLL_DEGREE_RANGE 40

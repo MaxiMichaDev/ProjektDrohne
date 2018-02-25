@@ -6,9 +6,9 @@
 #include <math.h>
 #include "TiltController.h"
 
-TiltController::TiltController(const unsigned int servoCount, Servo *servo, const int *sign, const float degreeZero,
-                               const float degreeRange,
-                               const float maxAdjust) :
+TiltController::TiltController(unsigned int servoCount, Servo *servo, const int *sign, uint8_t degreeZero,
+                               uint8_t degreeRange,
+                               uint8_t maxAdjust) :
         servoCount(servoCount), servo(servo), sign(sign), degreeZero(degreeZero), degreeRange(degreeRange),
         maxAdjust(maxAdjust) {
 
@@ -19,10 +19,9 @@ void TiltController::supply(float gyroValue) {
 
     auto adjust = static_cast<int>(floor(rawAdjust));
 
-    for (unsigned int i = 0; i < servoCount; ++i) {
-        float degree = degreeZero + sign[i] * (getAmplitudePercentage(delta) / 100 * degreeRange + adjust);
-        degree = limitDegree(degree);
-        servo[i].write((int) degree);
+    for (int i = 0; i < servoCount; ++i) {
+        servoValue = limitDegree(static_cast<uint8_t>(degreeZero + sign[i] * (getAmplitudePercentage(delta) / 100 * degreeRange + adjust)));
+        servo[i].write(servoValue);
     }
 
 
@@ -41,12 +40,12 @@ void TiltController::targetDegree(float target) {
     TiltController::target = target;
 }
 
-float TiltController::limitDegree(float degree) const {
+uint8_t TiltController::limitDegree(uint8_t degree) const {
     if (degree > degreeZero + degreeRange) {
-            degree = degreeZero + degreeRange;
-        } else if (degree < degreeZero - degreeRange) {
-            degree = degreeZero - degreeRange;
-        }
+        degree = degreeZero + degreeRange;
+    } else if (degree < degreeZero - degreeRange) {
+        degree = degreeZero - degreeRange;
+    }
     return degree;
 }
 
@@ -61,4 +60,12 @@ float TiltController::f(float x) {
 
 int TiltController::sgn(float val) {
     return (val > 0) - (val < 0);
+}
+
+uint8_t TiltController::getServoValue() {
+    return servoValue;
+}
+
+void TiltController::reset() {
+    rawAdjust = 0;
 }
