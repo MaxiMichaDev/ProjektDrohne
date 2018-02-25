@@ -31,7 +31,7 @@ uint8_t fifoBuffer[64]; // FIFO storage buffer
 Quaternion q;		 // [w, x, y, z]         quaternion container
 VectorFloat gravity; // [x, y, z]            gravity vector
 
-#ifdef OUTPUT_READABLE_YAWPITCHROLL 
+#ifdef OUTPUT_READABLE_YAWPITCHROLL
 	float ypr[3];		 // [yaw, pitch, roll]   yaw/pitch/roll container and gravity vector
 #endif
 
@@ -44,7 +44,11 @@ const int rollSign = -1;
 Servo pitchServos[2];
 const int pitchSigns[] = {1, -1};
 
+#define IDLE_WHEN_REMOTE_CONTROLLED
 
+#ifdef IDLE_WHEN_REMOTE_CONTROLLED
+#define REMOTE_CONTROL_PIN 8
+#endif
 
 #define SERVO_PIN_PITCH_1 6
 #define SERVO_PIN_PITCH_2 9
@@ -148,8 +152,20 @@ void setup()
 	}
 }
 
+#ifdef IDLE_WHEN_REMOTE_CONTROLLED
+bool isRemoteControlled() { return digitalRead(REMOTE_CONTROL_PIN) == HIGH; }
+#endif
+
 void loop()
 {
+#ifdef IDLE_WHEN_REMOTE_CONTROLLED
+    if (isRemoteControlled()) {
+        pitchController->reset();
+        rollController->reset();
+        while (isRemoteControlled()) {}
+    }
+#endif
+
 	engineServo.write(30); //30 für Motor = aus
 
 	getMpuValues(mpuData);
@@ -204,7 +220,7 @@ void getMpuValues(float *data)
 		mpu.dmpGetQuaternion(&q, fifoBuffer);
 		mpu.dmpGetGravity(&gravity, &q);
 		mpu.dmpGetYawPitchRoll(data, &q, &gravity);
-	
+
 		#ifdef OUTPUT_READABLE_YAWPITCHROLL
 			// display Euler angles in degrees
 
