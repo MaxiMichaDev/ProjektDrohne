@@ -15,7 +15,6 @@ public:
     void supply(float gyroValue);
     void targetDegree(float target);
     uint8_t getServoValue();
-    void reset();
 
 private:
     const int servoCount;
@@ -26,13 +25,10 @@ private:
     const uint8_t maxAdjust;
 
     uint8_t servoValue;
-    float target = 0;
-    float rawAdjust = 0;
 
 
-    uint8_t limitDegree(uint8_t degree) const;
-    float getAmplitudePercentage(float degreeDifference);
-    float f(float x);
+//    uint8_t limitDegree(uint8_t degree) const;
+
 
     int sgn(float val);
 
