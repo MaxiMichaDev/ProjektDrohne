@@ -9,7 +9,8 @@
 #include <helper_3dmath.h>
 #include <MPU6050_6Axis_MotionApps20.h>
 #include "TiltController.h"
-
+#include "SPI.h"
+#include "SD.h"
 // Arduino Wire library is required if I2Cdev I2CDEV_ARDUINO_WIRE implementation
 // is used in I2Cdev.h
 #if I2CDEV_IMPLEMENTATION == I2CDEV_ARDUINO_WIRE
@@ -48,6 +49,7 @@ const int pitchSigns[] = {1, -1};
 
 #ifdef IDLE_WHEN_REMOTE_CONTROLLED
 #define REMOTE_CONTROL_PIN 8
+#define SD_PIN SS
 #endif
 
 #define SERVO_PIN_PITCH_1 6
@@ -75,6 +77,39 @@ void dmpDataReady()
 TiltController *pitchController;
 TiltController *rollController;
 
+File file;
+
+#define LOG_INTERVAL 10
+#define FILE_BASE_NAME "log"
+
+const uint8_t BASE_NAME_SIZE = sizeof(FILE_BASE_NAME) - 1;
+const uint8_t FILE_NAME_DIM  = BASE_NAME_SIZE + 7;
+char fileName[FILE_NAME_DIM] = FILE_BASE_NAME "00.csv";
+
+uint32_t startMillis;
+
+void openNextLogfile() {
+    Serial.println("Opening next file");
+    while (SD.exists(fileName)) {
+        Serial.print(fileName);
+        Serial.println(" already exists");
+        if (fileName[BASE_NAME_SIZE + 1] != '9') {
+            fileName[BASE_NAME_SIZE + 1]++;
+        } else {
+            fileName[BASE_NAME_SIZE + 1] = '0';
+            if (fileName[BASE_NAME_SIZE] == '9') {
+                Serial.println("Can't create file name");
+            }
+            fileName[BASE_NAME_SIZE]++;
+        }
+    }
+    Serial.print("Opening ");
+    Serial.println(fileName);
+    file = SD.open(fileName, FILE_WRITE);
+    startMillis = 0;
+    file.println(F("time (ms), yaw, pitch, roll, pitchPercent, rollPercent"));
+}
+
 void setup()
 {
 	Serial.begin(115200);
@@ -88,6 +123,16 @@ void setup()
 	rollController = new TiltController(1, &rollServo, &rollSign, ROLL_DEGREE_0, ROLL_DEGREE_RANGE, MAX_ROLL_ADJUST);
     pitchController->targetDegree(2);
     rollController->targetDegree(-0.4);
+
+    Serial.print("Initializing SD card...");
+
+	if (!SD.begin(SD_PIN)) {
+		Serial.println("initialization failed!");
+		while (true);
+	}
+	Serial.println("initialization done.");
+
+    openNextLogfile();
 
 	// join I2C bus (I2Cdev library doesn't do this automatically)
 #if I2CDEV_IMPLEMENTATION == I2CDEV_ARDUINO_WIRE
@@ -156,13 +201,20 @@ void setup()
 bool isRemoteControlled() { return digitalRead(REMOTE_CONTROL_PIN) == HIGH; }
 #endif
 
+uint32_t lastMillis;
+
 void loop()
 {
 #ifdef IDLE_WHEN_REMOTE_CONTROLLED
     if (isRemoteControlled()) {
+        Serial.println("Stopped");
+        file.close();
+
         pitchController->reset();
         rollController->reset();
         while (isRemoteControlled()) {}
+        openNextLogfile();
+        Serial.println("Continuing with next file");
     }
 #endif
 
@@ -171,6 +223,22 @@ void loop()
 	getMpuValues(mpuData);
     pitchController->supply(mpuData[1]);
     rollController->supply(mpuData[2]);
+
+    if (millis() - lastMillis > LOG_INTERVAL - 1) {
+        lastMillis = millis();
+        if (startMillis == 0) {
+            startMillis = lastMillis;
+        }
+        file.print(millis() - startMillis);
+        for (float value : mpuData) {
+            file.write(';');
+            file.print(value * 180 / M_PI);
+        }
+        file.write(',');
+        file.print(((float) (pitchController->getServoValue() - PITCH_DEGREE_0)) / ((float) PITCH_DEGREE_RANGE));
+        file.write(',');
+        file.println(((float) (rollController->getServoValue() - ROLL_DEGREE_0)) / ((float) ROLL_DEGREE_RANGE));
+    }
 }
 
 
