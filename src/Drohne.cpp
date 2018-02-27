@@ -68,6 +68,8 @@ const int pitchSigns[] = {1, -1};
 float mpuData[3];
 void getMpuValues(float *data);
 
+void logData();
+
 volatile bool mpuInterrupt = false; // indicates whether MPU interrupt pin has gone high
 void dmpDataReady()
 {
@@ -80,13 +82,14 @@ TiltController *rollController;
 File file;
 
 #define LOG_INTERVAL 10
-#define FILE_BASE_NAME "log"
+#define FILE_BASE_NAME "motor"
 
 const uint8_t BASE_NAME_SIZE = sizeof(FILE_BASE_NAME) - 1;
 const uint8_t FILE_NAME_DIM  = BASE_NAME_SIZE + 7;
 char fileName[FILE_NAME_DIM] = FILE_BASE_NAME "00.csv";
 
 uint32_t startMillis;
+uint8_t motorSpeed = 60;
 
 void openNextLogfile() {
     Serial.println("Opening next file");
@@ -107,6 +110,8 @@ void openNextLogfile() {
     Serial.println(fileName);
     file = SD.open(fileName, FILE_WRITE);
     startMillis = 0;
+    file.print(F("motorSpeed: "));
+    file.println(motorSpeed);
     file.println(F("time (ms), yaw, pitch, roll, pitchPercent, rollPercent"));
 }
 
@@ -201,7 +206,8 @@ void setup()
 bool isRemoteControlled() { return digitalRead(REMOTE_CONTROL_PIN) == HIGH; }
 #endif
 
-uint32_t lastMillis;
+#define MOTOR_SPEED_CHAGE_INTERVAL 4000
+uint32_t nextMotorSpeedChange = MOTOR_SPEED_CHAGE_INTERVAL;
 
 void loop()
 {
@@ -213,17 +219,30 @@ void loop()
         pitchController->reset();
         rollController->reset();
         while (isRemoteControlled()) {}
+        nextMotorSpeedChange = millis() + MOTOR_SPEED_CHAGE_INTERVAL;
         openNextLogfile();
         Serial.println("Continuing with next file");
     }
 #endif
 
-	engineServo.write(30); //30 für Motor = aus
+    if (millis() > nextMotorSpeedChange && motorSpeed != 180) {
+        nextMotorSpeedChange = millis() + MOTOR_SPEED_CHAGE_INTERVAL;
+        motorSpeed += 20;
+        file.close();
+        openNextLogfile();
+    }
+    engineServo.write(motorSpeed); //30 für Motor = aus
 
 	getMpuValues(mpuData);
     pitchController->supply(mpuData[1]);
     rollController->supply(mpuData[2]);
 
+    logData();
+}
+
+uint32_t lastMillis;
+
+void logData() {
     if (millis() - lastMillis > LOG_INTERVAL - 1) {
         lastMillis = millis();
         if (startMillis == 0) {
