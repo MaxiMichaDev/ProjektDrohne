@@ -63,8 +63,22 @@ const int pitchSigns[] = {1, -1};
 #define PITCH_DEGREE_RANGE 30
 #define MAX_PITCH_ADJUST 15
 
+
+int RCin = 10;
+int duration_dmax_dmin[3];
+bool i_a = true;
+int i_b = 100;
+bool i_c = false;
+int i_d = 0;
+float durationFactorsPitch_Roll[2];
+
+
+
+//int PValue = 1;
+
 float mpuData[3];
 void getMpuValues(float *data);
+void getDuration(int max_min);
 
 volatile bool mpuInterrupt = false; // indicates whether MPU interrupt pin has gone high
 void dmpDataReady()
@@ -77,7 +91,10 @@ TiltController *rollController;
 
 void setup()
 {
-	Serial.begin(115200);
+
+	pinMode(RCin, INPUT);
+
+    Serial.begin(115200);
 	while (!Serial); // wait for Leonardo enumeration, otherwise continue immediately
 
 	pitchServos[0].attach(SERVO_PIN_PITCH_1);
@@ -86,8 +103,8 @@ void setup()
 	engineServo.attach(SERVO_PIN_ENGINE);
     pitchController = new TiltController(2, pitchServos, pitchSigns, PITCH_DEGREE_0, PITCH_DEGREE_RANGE, MAX_PITCH_ADJUST);
 	rollController = new TiltController(1, &rollServo, &rollSign, ROLL_DEGREE_0, ROLL_DEGREE_RANGE, MAX_ROLL_ADJUST);
-    pitchController->targetDegree(2);
-    rollController->targetDegree(-0.4);
+    pitchController->targetDegree(0);
+    rollController->targetDegree(-0.5);
 
 	// join I2C bus (I2Cdev library doesn't do this automatically)
 #if I2CDEV_IMPLEMENTATION == I2CDEV_ARDUINO_WIRE
@@ -156,23 +173,85 @@ void setup()
 bool isRemoteControlled() { return digitalRead(REMOTE_CONTROL_PIN) == HIGH; }
 #endif
 
-void loop()
-{
+void loop() {
 #ifdef IDLE_WHEN_REMOTE_CONTROLLED
     if (isRemoteControlled()) {
         pitchController->reset();
         rollController->reset();
+        if(i_d > 20){
+            i_c = !i_c;
+        }
+        i_d = 0;
         while (isRemoteControlled()) {}
     }
 #endif
 
-	engineServo.write(30); //30 für Motor = aus
+    engineServo.write(30); //30 für Motor = aus
 
-	getMpuValues(mpuData);
+    if(i_d < 21){
+        i_d += 1;
+    }
+
+    if (i_a) {
+        delay(2000);
+        getDuration(2);
+        delay(5000);
+        getDuration(1);
+        i_a = false;
+    }
+    if (i_b > 100) {
+        getDuration(0);
+        i_b = 0;
+    }
+	else{
+        i_b += 1;
+    }
+
+    if(i_c){
+        durationFactorsPitch_Roll[0] = 1;
+        durationFactorsPitch_Roll[1] = 0.5;
+    }
+    else{
+        durationFactorsPitch_Roll[0] = 0.5;
+        durationFactorsPitch_Roll[1] = 1;
+    }
+
+    getMpuValues(mpuData);
+    pitchController->changeP_Factor(static_cast<int>(duration_dmax_dmin[0] * durationFactorsPitch_Roll[0]));
+    rollController->changeP_Factor(static_cast<int>(duration_dmax_dmin[0] * durationFactorsPitch_Roll[1]));
     pitchController->supply(mpuData[1]);
     rollController->supply(mpuData[2]);
+
 }
 
+
+void getDuration(int max_min){
+    if(max_min == 0){
+        int duration_raw/*[5]*/;
+      /*  int duration_average = 0;
+        int delta_average[5];
+        int i = 0;
+        int min = 0;
+        while(i != 5){
+          */  duration_raw/*[i]*/ = static_cast<int>(pulseIn(RCin, HIGH, 30000));/*
+            duration_average += duration_raw[i];
+            i += 1;
+        }
+        i = 0;
+        duration_average /= 5;
+        while(i != 5){
+            delta_average[i] = static_cast<int>(fabs(duration_raw[i] - duration_average));
+            if(delta_average[i] < delta_average[min]){
+                min = i;
+            }
+            i += 1;
+        }*/
+        duration_dmax_dmin[0] = static_cast<int>(fabs(map(duration_raw/*[min]*/, duration_dmax_dmin[2], duration_dmax_dmin[1], 200, 600)));
+    }
+    else{
+        duration_dmax_dmin[max_min] = static_cast<int>(pulseIn(RCin, HIGH));
+    }
+}
 
 void getMpuValues(float *data)
 {
