@@ -16,7 +16,7 @@ public:
     void targetDegree(float target);
     uint8_t getServoValue();
     void reset();
-    void changeP_Factor(int p);
+    void changeI_Factor(int i);
 
 
 private:
@@ -30,7 +30,7 @@ private:
     uint8_t servoValue;
     float target = 0;
     float rawAdjust = 0;
-    float P_Factor = 0;
+    float I_Factor = 0;
 
 
     uint8_t limitDegree(uint8_t degree) const;

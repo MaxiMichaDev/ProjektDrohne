@@ -57,7 +57,7 @@ const int pitchSigns[] = {1, -1};
 
 #define ROLL_DEGREE_0 81
 #define ROLL_DEGREE_RANGE 40
-#define MAX_ROLL_ADJUST 25
+#define MAX_ROLL_ADJUST 20
 
 #define PITCH_DEGREE_0 96
 #define PITCH_DEGREE_RANGE 30
@@ -209,16 +209,16 @@ void loop() {
 
     if(i_c){
         durationFactorsPitch_Roll[0] = 1;
-        durationFactorsPitch_Roll[1] = 0.5;
+        durationFactorsPitch_Roll[1] = 0;
     }
     else{
-        durationFactorsPitch_Roll[0] = 0.5;
+        durationFactorsPitch_Roll[0] = 0;
         durationFactorsPitch_Roll[1] = 1;
     }
 
     getMpuValues(mpuData);
-    pitchController->changeP_Factor(static_cast<int>(duration_dmax_dmin[0] * durationFactorsPitch_Roll[0]));
-    rollController->changeP_Factor(static_cast<int>(duration_dmax_dmin[0] * durationFactorsPitch_Roll[1]));
+    pitchController->changeI_Factor(static_cast<int>(duration_dmax_dmin[0] * durationFactorsPitch_Roll[0]));
+    rollController->changeI_Factor(static_cast<int>(duration_dmax_dmin[0] * durationFactorsPitch_Roll[1]));
     pitchController->supply(mpuData[1]);
     rollController->supply(mpuData[2]);
 
@@ -228,7 +228,7 @@ void loop() {
 void getDuration(int max_min){
     if(max_min == 0){
         int duration_raw/*[5]*/;
-      /*  int duration_average = 0;
+      /*  int duration_average = 0;         Das hier ist der nicht funktionierende Filter. Prinzip: 5 Werte werden genommen und es wird nur der Wert verwendet, dessen Betrag der Differenz zum Durchschnitt aller 5 Werte am geringsten ist.
         int delta_average[5];
         int i = 0;
         int min = 0;
@@ -246,7 +246,7 @@ void getDuration(int max_min){
             }
             i += 1;
         }*/
-        duration_dmax_dmin[0] = static_cast<int>(fabs(map(duration_raw/*[min]*/, duration_dmax_dmin[2], duration_dmax_dmin[1], 200, 600)));
+        duration_dmax_dmin[0] = static_cast<int>(fabs(map(duration_raw/*[min]*/, duration_dmax_dmin[2], duration_dmax_dmin[1], 0, 180)));
     }
     else{
         duration_dmax_dmin[max_min] = static_cast<int>(pulseIn(RCin, HIGH));
