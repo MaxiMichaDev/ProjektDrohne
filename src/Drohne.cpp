@@ -64,13 +64,14 @@ const int pitchSigns[] = {1, -1};
 #define MAX_PITCH_ADJUST 15
 
 
-int RCin = 10;
-int duration_dmax_dmin[3];
+#define REMOTE_PIN_IN 10
+int minRemoteValue;
+int maxRemoteValue;
+uint8_t iFactor;
 bool i_a = true;
 int i_b = 100;
 bool i_c = false;
 int i_d = 0;
-float durationFactorsPitch_Roll[2];
 
 
 
@@ -78,7 +79,7 @@ float durationFactorsPitch_Roll[2];
 
 float mpuData[3];
 void getMpuValues(float *data);
-void getDuration(int max_min);
+int receiveRemoteValue();
 
 volatile bool mpuInterrupt = false; // indicates whether MPU interrupt pin has gone high
 void dmpDataReady()
@@ -92,7 +93,7 @@ TiltController *rollController;
 void setup()
 {
 
-	pinMode(RCin, INPUT);
+	pinMode(REMOTE_PIN_IN, INPUT);
 
     Serial.begin(115200);
 	while (!Serial); // wait for Leonardo enumeration, otherwise continue immediately
@@ -194,63 +195,32 @@ void loop() {
 
     if (i_a) {
         delay(2000);
-        getDuration(2);
+        minRemoteValue = receiveRemoteValue();
         delay(5000);
-        getDuration(1);
+        maxRemoteValue = receiveRemoteValue();
         i_a = false;
     }
-    if (i_b > 100) {
-        getDuration(0);
-        i_b = 0;
-    }
-	else{
-        i_b += 1;
-    }
+	if (i_b > 100) {
+		int remoteValue = constrain(receiveRemoteValue(), minRemoteValue, maxRemoteValue);
+		iFactor = static_cast<uint8_t >(fabs(map(remoteValue, minRemoteValue, maxRemoteValue, 0, 180)));
+		i_b = 0;
+	} else {
+		i_b += 1;
+	}
 
     if(i_c){
-        durationFactorsPitch_Roll[0] = 1;
-        durationFactorsPitch_Roll[1] = 0;
+        pitchController->changeI_Factor(iFactor);
+        rollController->changeI_Factor(0);
     }
     else{
-        durationFactorsPitch_Roll[0] = 0;
-        durationFactorsPitch_Roll[1] = 1;
+        pitchController->changeI_Factor(0);
+        rollController->changeI_Factor(iFactor);
     }
 
     getMpuValues(mpuData);
-    pitchController->changeI_Factor(static_cast<int>(duration_dmax_dmin[0] * durationFactorsPitch_Roll[0]));
-    rollController->changeI_Factor(static_cast<int>(duration_dmax_dmin[0] * durationFactorsPitch_Roll[1]));
     pitchController->supply(mpuData[1]);
     rollController->supply(mpuData[2]);
 
-}
-
-
-void getDuration(int max_min){
-    if(max_min == 0){
-        int duration_raw/*[5]*/;
-      /*  int duration_average = 0;         Das hier ist der nicht funktionierende Filter. Prinzip: 5 Werte werden genommen und es wird nur der Wert verwendet, dessen Betrag der Differenz zum Durchschnitt aller 5 Werte am geringsten ist.
-        int delta_average[5];
-        int i = 0;
-        int min = 0;
-        while(i != 5){
-          */  duration_raw/*[i]*/ = static_cast<int>(pulseIn(RCin, HIGH, 30000));/*
-            duration_average += duration_raw[i];
-            i += 1;
-        }
-        i = 0;
-        duration_average /= 5;
-        while(i != 5){
-            delta_average[i] = static_cast<int>(fabs(duration_raw[i] - duration_average));
-            if(delta_average[i] < delta_average[min]){
-                min = i;
-            }
-            i += 1;
-        }*/
-        duration_dmax_dmin[0] = static_cast<int>(fabs(map(duration_raw/*[min]*/, duration_dmax_dmin[2], duration_dmax_dmin[1], 0, 180)));
-    }
-    else{
-        duration_dmax_dmin[max_min] = static_cast<int>(pulseIn(RCin, HIGH));
-    }
 }
 
 void getMpuValues(float *data)
@@ -312,5 +282,35 @@ void getMpuValues(float *data)
 
 		#endif
 	}
+}
+
+int receiveRemoteValue() {
+
+    return static_cast<int>(pulseIn(REMOTE_PIN_IN, HIGH, 30000));
+//    if(max_min == 0){
+//        int duration_raw/*[5]*/;
+//        /*  int duration_average = 0;         Das hier ist der nicht funktionierende Filter. Prinzip: 5 Werte werden genommen und es wird nur der Wert verwendet, dessen Betrag der Differenz zum Durchschnitt aller 5 Werte am geringsten ist.
+//          int delta_average[5];
+//          int i = 0;
+//          int min = 0;
+//          while(i != 5){
+//            */  duration_raw/*[i]*/ = static_cast<int>(pulseIn(REMOTE_PIN_IN, HIGH, 30000));/*
+//            duration_average += duration_raw[i];
+//            i += 1;
+//        }
+//        i = 0;
+//        duration_average /= 5;
+//        while(i != 5){
+//            delta_average[i] = static_cast<int>(fabs(duration_raw[i] - duration_average));
+//            if(delta_average[i] < delta_average[min]){
+//                min = i;
+//            }
+//            i += 1;
+//        }*/
+//        duration_dmax_dmin[0] = static_cast<int>(fabs(map(duration_raw/*[min]*/, duration_dmax_dmin[2], duration_dmax_dmin[1], 0, 180)));
+//    }
+//    else{
+//        duration_dmax_dmin[max_min] = static_cast<int>(pulseIn(REMOTE_PIN_IN, HIGH));
+//    }
 }
 

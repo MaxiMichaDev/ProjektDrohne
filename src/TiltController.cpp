@@ -26,15 +26,8 @@ void TiltController::supply(float gyroValue) {
         servo[i].write(servoValue);
     }
 
-
-
-    rawAdjust += /*f(delta)*/ I_Factor / 100 * sgn(delta);
-    if (rawAdjust > maxAdjust)
-        rawAdjust = maxAdjust;
-
-    if (rawAdjust <  -maxAdjust)
-        rawAdjust =  -maxAdjust;
-
+    rawAdjust += /*f(delta)*/ static_cast<float>(I_Factor) / 100 * sgn(delta);
+    rawAdjust = constrain(rawAdjust, -maxAdjust, maxAdjust);
 }
 
 void TiltController::targetDegree(float target) {
@@ -42,12 +35,7 @@ void TiltController::targetDegree(float target) {
 }
 
 uint8_t TiltController::limitDegree(uint8_t degree) const {
-    if (degree > degreeZero + degreeRange) {
-        degree = degreeZero + degreeRange;
-    } else if (degree < degreeZero - degreeRange) {
-        degree = degreeZero - degreeRange;
-    }
-    return degree;
+    return constrain(degree, degreeZero - degreeRange, degreeZero + degreeRange);
 }
 
 float TiltController::getAmplitudePercentage(float degreeDifference) {
@@ -75,7 +63,10 @@ void TiltController::reset() {
 
 
 
-void TiltController::changeI_Factor(int i) {
-    I_Factor = i < 5 ? 0 : i;
+void TiltController::changeI_Factor(uint8_t i) {
+    I_Factor = static_cast<uint8_t>(i < 35 ? 0 : i);
+    if (I_Factor == 0) {
+        reset();
+    }
 }
 
