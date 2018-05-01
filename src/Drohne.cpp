@@ -57,11 +57,11 @@ const int pitchSigns[] = {1, -1};
 
 #define ROLL_DEGREE_0 81
 #define ROLL_DEGREE_RANGE 40
-#define MAX_ROLL_ADJUST 20
+#define MAX_ROLL_ADJUST 40
 
 #define PITCH_DEGREE_0 96
 #define PITCH_DEGREE_RANGE 30
-#define MAX_PITCH_ADJUST 15
+#define MAX_PITCH_ADJUST 30
 
 
 int RCin = 10;
@@ -186,7 +186,7 @@ void loop() {
     }
 #endif
 
-    engineServo.write(30); //30 für Motor = aus
+    engineServo.write(180); //30 für Motor = aus
 
     if(i_d < 21){
         i_d += 1;
@@ -232,8 +232,11 @@ void getDuration(int max_min){
         int delta_average[5];
         int i = 0;
         int min = 0;
-        while(i != 5){
-          */  duration_raw/*[i]*/ = static_cast<int>(pulseIn(RCin, HIGH, 30000));/*
+        while(i != 5){ */
+          duration_raw/*[i]*/ = static_cast<int>(pulseIn(RCin, HIGH, 30000));
+		duration_raw = constrain(duration_raw, duration_dmax_dmin[2], duration_dmax_dmin[1]);
+
+		/*
             duration_average += duration_raw[i];
             i += 1;
         }
@@ -246,7 +249,7 @@ void getDuration(int max_min){
             }
             i += 1;
         }*/
-        duration_dmax_dmin[0] = static_cast<int>(fabs(map(duration_raw/*[min]*/, duration_dmax_dmin[2], duration_dmax_dmin[1], 0, 180)));
+        duration_dmax_dmin[0] = static_cast<int>(fabs(map(duration_raw/*[min]*/, duration_dmax_dmin[2], duration_dmax_dmin[1], 0, 120)));
     }
     else{
         duration_dmax_dmin[max_min] = static_cast<int>(pulseIn(RCin, HIGH));

@@ -76,6 +76,9 @@ void TiltController::reset() {
 
 
 void TiltController::changeI_Factor(int i) {
-    I_Factor = i < 5 ? 0 : i;
+    I_Factor = i < 20 ? 0 : i;
+    if (I_Factor == 0) {
+        reset();
+    }
 }
 
