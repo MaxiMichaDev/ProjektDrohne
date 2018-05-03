@@ -9,6 +9,9 @@
 #include <helper_3dmath.h>
 #include <MPU6050_6Axis_MotionApps20.h>
 #include "TiltController.h"
+#include <RCSwitch.h>
+
+RCSwitch mySwitch = RCSwitch();
 
 // Arduino Wire library is required if I2Cdev I2CDEV_ARDUINO_WIRE implementation
 // is used in I2Cdev.h
@@ -91,6 +94,8 @@ TiltController *rollController;
 
 void setup()
 {
+
+	mySwitch.enableTransmit(11);
 
 	pinMode(RCin, INPUT);
 
@@ -234,6 +239,7 @@ void getDuration(int max_min){
         int min = 0;
         while(i != 5){ */
           duration_raw/*[i]*/ = static_cast<int>(pulseIn(RCin, HIGH, 30000));
+		mySwitch.send(static_cast<unsigned long>(duration_raw), 24);
 		duration_raw = constrain(duration_raw, duration_dmax_dmin[2], duration_dmax_dmin[1]);
 
 		/*
@@ -253,6 +259,7 @@ void getDuration(int max_min){
     }
     else{
         duration_dmax_dmin[max_min] = static_cast<int>(pulseIn(RCin, HIGH));
+		mySwitch.send(static_cast<unsigned long>(duration_dmax_dmin[max_min]), 24);
     }
 }
 
