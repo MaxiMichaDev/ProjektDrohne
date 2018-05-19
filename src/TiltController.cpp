@@ -28,7 +28,7 @@ void TiltController::supply(float gyroValue) {
 
 
 
-    rawAdjust += /*f(delta)*/ I_Factor / 100 * sgn(delta);
+    rawAdjust += /*f(delta)*/ I_Factor / 100 * delta /*sgn(delta)*/;
     if (rawAdjust > maxAdjust)
         rawAdjust = maxAdjust;
 
@@ -76,7 +76,7 @@ void TiltController::reset() {
 
 
 void TiltController::changeI_Factor(int i) {
-    I_Factor = i < 20 ? 0 : i;
+    I_Factor = i < 4 ? 0 : i;
     if (I_Factor == 0) {
         reset();
     }

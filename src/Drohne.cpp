@@ -104,7 +104,7 @@ void setup()
     pitchController = new TiltController(2, pitchServos, pitchSigns, PITCH_DEGREE_0, PITCH_DEGREE_RANGE, MAX_PITCH_ADJUST);
 	rollController = new TiltController(1, &rollServo, &rollSign, ROLL_DEGREE_0, ROLL_DEGREE_RANGE, MAX_ROLL_ADJUST);
     pitchController->targetDegree(0);
-    rollController->targetDegree(-0.5);
+    rollController->targetDegree(-1.5);
 
 	// join I2C bus (I2Cdev library doesn't do this automatically)
 #if I2CDEV_IMPLEMENTATION == I2CDEV_ARDUINO_WIRE
@@ -186,7 +186,7 @@ void loop() {
     }
 #endif
 
-    engineServo.write(180); //30 für Motor = aus
+    engineServo.write(30); //30 für Motor = aus
 
     if(i_d < 21){
         i_d += 1;
@@ -227,29 +227,12 @@ void loop() {
 
 void getDuration(int max_min){
     if(max_min == 0){
-        int duration_raw/*[5]*/;
-      /*  int duration_average = 0;         Das hier ist der nicht funktionierende Filter. Prinzip: 5 Werte werden genommen und es wird nur der Wert verwendet, dessen Betrag der Differenz zum Durchschnitt aller 5 Werte am geringsten ist.
-        int delta_average[5];
-        int i = 0;
-        int min = 0;
-        while(i != 5){ */
-          duration_raw/*[i]*/ = static_cast<int>(pulseIn(RCin, HIGH, 30000));
-		duration_raw = constrain(duration_raw, duration_dmax_dmin[2], duration_dmax_dmin[1]);
-
-		/*
-            duration_average += duration_raw[i];
-            i += 1;
+        int duration_raw;
+          duration_raw = static_cast<int>(pulseIn(RCin, HIGH, 30000));
+        if (duration_raw != 0) {
+            duration_raw = constrain(duration_raw, duration_dmax_dmin[2], duration_dmax_dmin[1]);
+            duration_dmax_dmin[0] = static_cast<int>(fabs(map(duration_raw, duration_dmax_dmin[2], duration_dmax_dmin[1], 0, 48)));
         }
-        i = 0;
-        duration_average /= 5;
-        while(i != 5){
-            delta_average[i] = static_cast<int>(fabs(duration_raw[i] - duration_average));
-            if(delta_average[i] < delta_average[min]){
-                min = i;
-            }
-            i += 1;
-        }*/
-        duration_dmax_dmin[0] = static_cast<int>(fabs(map(duration_raw/*[min]*/, duration_dmax_dmin[2], duration_dmax_dmin[1], 0, 120)));
     }
     else{
         duration_dmax_dmin[max_min] = static_cast<int>(pulseIn(RCin, HIGH));
