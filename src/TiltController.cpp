@@ -5,6 +5,8 @@
 #include <Servo.h>
 #include <math.h>
 #include "TiltController.h"
+#include <Arduino.h>
+
 
 TiltController::TiltController(unsigned int servoCount, Servo *servo, const int *sign, uint8_t degreeZero,
                                uint8_t degreeRange,
@@ -25,15 +27,14 @@ void TiltController::supply(float gyroValue) {
     }
 
 
-    if (fabs(delta) > 0.1)
-    {
-        rawAdjust += f(delta) * sgn(delta);
-        if (rawAdjust > maxAdjust)
-            rawAdjust = maxAdjust;
 
-        if (rawAdjust <  -maxAdjust)
-            rawAdjust =  -maxAdjust;
-    }
+    rawAdjust += /*f(delta)*/ 0.12 * delta /*sgn(delta)*/;
+    if (rawAdjust > maxAdjust)
+        rawAdjust = maxAdjust;
+
+    if (rawAdjust <  -maxAdjust)
+        rawAdjust =  -maxAdjust;
+
 }
 
 void TiltController::targetDegree(float target) {
@@ -50,13 +51,15 @@ uint8_t TiltController::limitDegree(uint8_t degree) const {
 }
 
 float TiltController::getAmplitudePercentage(float degreeDifference) {
-    return (1 / (1 + exp(-5 * degreeDifference / 100)) - 0.5) * 200;
+    return fabs(degreeDifference * 6) < 100 ? degreeDifference * 6 : 100 * sgn(degreeDifference);
+    //return (1 / (1 + exp(-5 * degreeDifference / 100)) - 0.5) * 200;
 }
 
-float TiltController::f(float x) {
-    return (2.8 / (1 + exp(-0.5*(fabs(x)))) - 1.3);
-    //return (abs(x) < 50) ? (0.1 * abs(x) + 0.2) : 1;
-}
+//float TiltController::f(float x) {
+//    return I_Factor;
+//    //return (2.8 / (1 + exp(-0.5*(fabs(x)))) - 1.3);
+//    //return (abs(x) < 50) ? (0.1 * abs(x) + 0.2) : 1;
+//}
 
 int TiltController::sgn(float val) {
     return (val > 0) - (val < 0);
@@ -69,3 +72,13 @@ uint8_t TiltController::getServoValue() {
 void TiltController::reset() {
     rawAdjust = 0;
 }
+
+
+
+//void TiltController::changeI_Factor(int i) {
+//    I_Factor = i < 4 ? 0 : i;
+//    if (I_Factor == 0) {
+//        reset();
+//    }
+//}
+

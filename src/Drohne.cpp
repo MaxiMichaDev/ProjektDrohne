@@ -4,7 +4,6 @@
  Author:	Micha    ...und Maxi!, halloooo?! :D
 */
 #include <Servo.h>
-
 #include <math.h>
 #include <helper_3dmath.h>
 #include <MPU6050_6Axis_MotionApps20.h>
@@ -33,7 +32,7 @@ Quaternion q;		 // [w, x, y, z]         quaternion container
 VectorFloat gravity; // [x, y, z]            gravity vector
 
 #ifdef OUTPUT_READABLE_YAWPITCHROLL
-	float ypr[3];		 // [yaw, pitch, roll]   yaw/pitch/roll container and gravity vector
+float ypr[3];		 // [yaw, pitch, roll]   yaw/pitch/roll container and gravity vector
 #endif
 
 
@@ -59,14 +58,28 @@ const int pitchSigns[] = {1, -1};
 
 #define ROLL_DEGREE_0 81
 #define ROLL_DEGREE_RANGE 40
-#define MAX_ROLL_ADJUST 25
+#define MAX_ROLL_ADJUST 40
 
 #define PITCH_DEGREE_0 96
 #define PITCH_DEGREE_RANGE 30
-#define MAX_PITCH_ADJUST 15
+#define MAX_PITCH_ADJUST 30
+
+
+//int RCin = 10;
+//int duration_dmax_dmin[3];
+//bool i_a = true;
+//int i_b = 100;
+//bool i_c = false;
+//int i_d = 0;
+//float durationFactorsPitch_Roll[2];
+
+
+
+//int PValue = 1;
 
 float mpuData[3];
 void getMpuValues(float *data);
+void getDuration(int max_min);
 
 volatile bool mpuInterrupt = false; // indicates whether MPU interrupt pin has gone high
 void dmpDataReady()
@@ -87,31 +100,38 @@ const uint8_t FILE_NAME_DIM  = BASE_NAME_SIZE + 7;
 char fileName[FILE_NAME_DIM] = FILE_BASE_NAME "00.csv";
 
 uint32_t startMillis;
+uint32_t lastMillis;
+
+int counter = 0;
+
 
 void openNextLogfile() {
-    Serial.println("Opening next file");
-    while (SD.exists(fileName)) {
-        Serial.print(fileName);
-        Serial.println(" already exists");
-        if (fileName[BASE_NAME_SIZE + 1] != '9') {
-            fileName[BASE_NAME_SIZE + 1]++;
-        } else {
-            fileName[BASE_NAME_SIZE + 1] = '0';
-            if (fileName[BASE_NAME_SIZE] == '9') {
-                Serial.println("Can't create file name");
-            }
-            fileName[BASE_NAME_SIZE]++;
-        }
-    }
-    Serial.print("Opening ");
-    Serial.println(fileName);
-    file = SD.open(fileName, FILE_WRITE);
-    startMillis = 0;
-    file.println(F("time (ms), yaw, pitch, roll, pitchPercent, rollPercent"));
+	Serial.println("Opening next file");
+	while (SD.exists(fileName)) {
+		Serial.print(fileName);
+		Serial.println(" already exists");
+		if (fileName[BASE_NAME_SIZE + 1] != '9') {
+			fileName[BASE_NAME_SIZE + 1]++;
+		} else {
+			fileName[BASE_NAME_SIZE + 1] = '0';
+			if (fileName[BASE_NAME_SIZE] == '9') {
+				Serial.println("Can't create file name");
+			}
+			fileName[BASE_NAME_SIZE]++;
+		}
+	}
+	Serial.print("Opening ");
+	Serial.println(fileName);
+	file = SD.open(fileName, FILE_WRITE);
+	startMillis = 0;
+	file.println(F("time (ms), yaw, pitch, roll, pitchPercent, rollPercent"));
 }
 
 void setup()
 {
+
+//	pinMode(RCin, INPUT);
+
 	Serial.begin(115200);
 	while (!Serial); // wait for Leonardo enumeration, otherwise continue immediately
 
@@ -119,12 +139,12 @@ void setup()
 	pitchServos[1].attach(SERVO_PIN_PITCH_2);
 	rollServo.attach(SERVO_PIN_ROLL);
 	engineServo.attach(SERVO_PIN_ENGINE);
-    pitchController = new TiltController(2, pitchServos, pitchSigns, PITCH_DEGREE_0, PITCH_DEGREE_RANGE, MAX_PITCH_ADJUST);
+	pitchController = new TiltController(2, pitchServos, pitchSigns, PITCH_DEGREE_0, PITCH_DEGREE_RANGE, MAX_PITCH_ADJUST);
 	rollController = new TiltController(1, &rollServo, &rollSign, ROLL_DEGREE_0, ROLL_DEGREE_RANGE, MAX_ROLL_ADJUST);
-    pitchController->targetDegree(2);
-    rollController->targetDegree(-0.4);
+	pitchController->targetDegree(0);
+	rollController->targetDegree(0);
 
-    Serial.print("Initializing SD card...");
+	Serial.print("Initializing SD card...");
 
 	if (!SD.begin(SD_PIN)) {
 		Serial.println("initialization failed!");
@@ -132,7 +152,8 @@ void setup()
 	}
 	Serial.println("initialization done.");
 
-    openNextLogfile();
+	openNextLogfile();
+
 
 	// join I2C bus (I2Cdev library doesn't do this automatically)
 #if I2CDEV_IMPLEMENTATION == I2CDEV_ARDUINO_WIRE
@@ -195,52 +216,103 @@ void setup()
 		Serial.print(devStatus);
 		Serial.println(F(")"));
 	}
+
+	uint32_t lastMillis;
 }
 
 #ifdef IDLE_WHEN_REMOTE_CONTROLLED
 bool isRemoteControlled() { return digitalRead(REMOTE_CONTROL_PIN) == HIGH; }
 #endif
 
-uint32_t lastMillis;
-
-void loop()
-{
+void loop() {
 #ifdef IDLE_WHEN_REMOTE_CONTROLLED
-    if (isRemoteControlled()) {
-        Serial.println("Stopped");
-        file.close();
+	if (isRemoteControlled()) {
+		if(counter > 20){
+			Serial.println("Stopped");
+			file.close();
 
-        pitchController->reset();
-        rollController->reset();
-        while (isRemoteControlled()) {}
-        openNextLogfile();
-        Serial.println("Continuing with next file");
-    }
+			pitchController->reset();
+			rollController->reset();
+			while (isRemoteControlled()) {}
+			openNextLogfile();
+			Serial.println("Continuing with next file");
+		}
+
+		counter = 0;
+	}
 #endif
+
+	if(counter < 21){
+		counter++;
+	}
 
 	engineServo.write(30); //30 für Motor = aus
 
+//	if(i_d < 21){
+//		i_d += 1;
+//	}
+//
+//	if (i_a) {
+//		delay(2000);
+//		getDuration(2);
+//		delay(5000);
+//		getDuration(1);
+//		i_a = false;
+//	}
+//	if (i_b > 100) {
+//		getDuration(0);
+//		i_b = 0;
+//	}
+//	else{
+//		i_b += 1;
+//	}
+//
+//	if(i_c){
+//		durationFactorsPitch_Roll[0] = 1;
+//		durationFactorsPitch_Roll[1] = 0;
+//	}
+//	else{
+//		durationFactorsPitch_Roll[0] = 0;
+//		durationFactorsPitch_Roll[1] = 1;
+//	}
+
 	getMpuValues(mpuData);
-    pitchController->supply(mpuData[1]);
-    rollController->supply(mpuData[2]);
+//	pitchController->changeI_Factor(static_cast<int>(duration_dmax_dmin[0] * durationFactorsPitch_Roll[0]));
+//	rollController->changeI_Factor(static_cast<int>(duration_dmax_dmin[0] * durationFactorsPitch_Roll[1]));
+	pitchController->supply(mpuData[1]);
+	rollController->supply(mpuData[2]);
 
-    if (millis() - lastMillis > LOG_INTERVAL - 1) {
-        lastMillis = millis();
-        if (startMillis == 0) {
-            startMillis = lastMillis;
-        }
-        file.print(millis() - startMillis);
-        for (float value : mpuData) {
-            file.write(';');
-            file.print(value * 180 / M_PI);
-        }
-        file.write(',');
-        file.print(((float) (pitchController->getServoValue() - PITCH_DEGREE_0)) / ((float) PITCH_DEGREE_RANGE));
-        file.write(',');
-        file.println(((float) (rollController->getServoValue() - ROLL_DEGREE_0)) / ((float) ROLL_DEGREE_RANGE));
-    }
+	if (millis() - lastMillis > LOG_INTERVAL - 1) {
+		lastMillis = millis();
+		if (startMillis == 0) {
+			startMillis = lastMillis;
+		}
+		file.print(millis() - startMillis);
+		for (float value : mpuData) {
+			file.write(';');
+			file.print(value * 180 / M_PI);
+		}
+		file.write(';');
+		file.print(((float) (pitchController->getServoValue() - PITCH_DEGREE_0)) / ((float) PITCH_DEGREE_RANGE));
+		file.write(';');
+		file.println(((float) (rollController->getServoValue() - ROLL_DEGREE_0)) / ((float) ROLL_DEGREE_RANGE));
+	}
+
+
+
+//void getDuration(int max_min){
+//	if(max_min == 0){
+//		int duration_raw;
+//		duration_raw = static_cast<int>(pulseIn(RCin, HIGH, 30000));
+//		if (duration_raw != 0) {
+//			duration_raw = constrain(duration_raw, duration_dmax_dmin[2], duration_dmax_dmin[1]);
+//			duration_dmax_dmin[0] = static_cast<int>(fabs(map(duration_raw, duration_dmax_dmin[2], duration_dmax_dmin[1], 0, 48)));
+//		}
+//	}
+//	else{
+//		duration_dmax_dmin[max_min] = static_cast<int>(pulseIn(RCin, HIGH));
+//	}
 }
-
 
 void getMpuValues(float *data)
 {
@@ -289,8 +361,8 @@ void getMpuValues(float *data)
 		mpu.dmpGetGravity(&gravity, &q);
 		mpu.dmpGetYawPitchRoll(data, &q, &gravity);
 
-		#ifdef OUTPUT_READABLE_YAWPITCHROLL
-			// display Euler angles in degrees
+#ifdef OUTPUT_READABLE_YAWPITCHROLL
+		// display Euler angles in degrees
 
 			Serial.print("ypr\t");
 			Serial.print(data[0] * 180 / M_PI);
@@ -299,7 +371,7 @@ void getMpuValues(float *data)
 			Serial.print("\t");
 			Serial.println(data[2] * 180 / M_PI);
 
-		#endif
+#endif
 	}
 }
 
